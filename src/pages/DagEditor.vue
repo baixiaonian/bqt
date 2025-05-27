@@ -51,44 +51,65 @@ watch(editInputValue, (val) => {
   }
 })
 
-watch(isEditMode, (val) => {
+watch(isEditMode, async (val) => {
   if (graph) {
-    // 编辑模式下允许创建/删除连线，查看模式下禁止
-    graph.options.connecting = {
-      ...graph.options.connecting,
-      allowEdge: false,
-      allowNode: val,
-      allowBlank: false,
-      allowLoop: false,
-      highlight: true,
-      snap: true,
-      validateConnection({ sourceCell, targetCell }) {
-        return sourceCell.id !== targetCell.id && val
-      },
-      createEdge() {
-        return graph.createEdge({
-          attrs: {
-            line: {
-              stroke: '#A2B1C3',
-              strokeWidth: 2,
-              targetMarker: {
-                name: 'block',
-                width: 12,
-                height: 8,
+    await nextTick()
+    try {
+      // 更新连线配置
+      graph.options.connecting = {
+        ...graph.options.connecting,
+        allowEdge: false,
+        allowNode: val,
+        allowBlank: false,
+        allowLoop: false,
+        highlight: true,
+        snap: true,
+        validateConnection({ sourceCell, targetCell }) {
+          return sourceCell.id !== targetCell.id && val
+        },
+        createEdge() {
+          return graph.createEdge({
+            attrs: {
+              line: {
+                stroke: '#A2B1C3',
+                strokeWidth: 2,
+                targetMarker: {
+                  name: 'block',
+                  width: 12,
+                  height: 8,
+                },
               },
             },
-          },
+          })
+        },
+      }
+
+      // 更新节点和连线的交互状态
+      const nodes = graph.getNodes()
+      if (nodes && nodes.length) {
+        nodes.forEach(node => {
+          if (node && node.setData) {
+            node.setData({ draggable: true })
+            node.attr('body/cursor', 'move')
+            // 编辑模式下显示锚点，查看模式下隐藏锚点
+            node.getPorts().forEach(port => {
+              node.setPortProp(port.id, 'attrs/circle/style/display', val ? '' : 'none')
+            })
+          }
         })
-      },
+      }
+
+      const edges = graph.getEdges()
+      if (edges && edges.length) {
+        edges.forEach(edge => {
+          if (edge && edge.attr) {
+            edge.attr('line/cursor', 'pointer')
+          }
+        })
+      }
+    } catch (error) {
+      console.warn('更新图形属性失败:', error)
     }
-    // 编辑模式下节点可编辑，查看模式下禁止
-    graph.getNodes().forEach(node => {
-      node.setDraggable(true)
-      node.setAttrs({ body: { cursor: 'move' } })
-    })
-    graph.getEdges().forEach(edge => {
-      edge.setAttrs({ line: { cursor: 'pointer' } })
-    })
   }
 })
 
@@ -140,109 +161,121 @@ function cancelEdit() {
   editingNodeId.value = null
 }
 
-onMounted(() => {
-  graph = new Graph({
-    container: container.value,
-    width: container.value.clientWidth,
-    height: container.value.clientHeight,
-    grid: true,
-    connecting: {
-      connector: 'smooth',
-      anchor: 'center',
-      connectionPoint: 'anchor',
-      allowBlank: false,
-      highlight: true,
-      snap: true,
-      allowLoop: false,
-      allowNode: isEditMode.value,
-      allowEdge: false,
-      validateConnection({ sourceCell, targetCell }) {
-        return sourceCell.id !== targetCell.id && isEditMode.value
-      },
-      createEdge() {
-        return graph.createEdge({
-          attrs: {
-            line: {
-              stroke: '#A2B1C3',
-              strokeWidth: 2,
-              targetMarker: {
-                name: 'block',
-                width: 12,
-                height: 8,
+onMounted(async () => {
+  await nextTick()
+  try {
+    graph = new Graph({
+      container: container.value,
+      width: container.value.clientWidth,
+      height: container.value.clientHeight,
+      grid: true,
+      connecting: {
+        connector: 'smooth',
+        anchor: 'center',
+        connectionPoint: 'anchor',
+        allowBlank: false,
+        highlight: true,
+        snap: true,
+        allowLoop: false,
+        allowNode: isEditMode.value,
+        allowEdge: false,
+        validateConnection({ sourceCell, targetCell }) {
+          return sourceCell.id !== targetCell.id && isEditMode.value
+        },
+        createEdge() {
+          return graph.createEdge({
+            attrs: {
+              line: {
+                stroke: '#A2B1C3',
+                strokeWidth: 2,
+                targetMarker: {
+                  name: 'block',
+                  width: 12,
+                  height: 8,
+                },
               },
             },
-          },
-        })
+          })
+        },
       },
-    },
-    selecting: {
-      enabled: true,
-      multiple: false,
-      rubberband: true,
-      showNodeSelectionBox: true,
-      showEdgeSelectionBox: true,
-    },
-    keyboard: {
-      enabled: true,
-    },
-    clipboard: {
-      enabled: true,
-    },
-  })
+      selecting: {
+        enabled: true,
+        multiple: false,
+        rubberband: true,
+        showNodeSelectionBox: true,
+        showEdgeSelectionBox: true,
+      },
+      keyboard: {
+        enabled: true,
+      },
+      clipboard: {
+        enabled: true,
+      },
+    })
 
-  window.addEventListener('resize', resizeGraph)
+    window.addEventListener('resize', resizeGraph)
 
-  // 选中节点高亮
-  graph.on('node:click', ({ node }) => {
-    if (selectedNodeId.value && selectedNodeId.value !== node.id) {
-      clearNodeHighlight()
-    }
-    selectedNodeId.value = node.id
-    highlightNode(node.id)
-  })
-
-  // 选中连线高亮
-  graph.on('edge:click', ({ edge }) => {
-    graph.getEdges().forEach(e => e.setAttrs({ line: { stroke: '#A2B1C3', strokeWidth: 2 } }))
-    edge.setAttrs({ line: { stroke: '#f56c6c', strokeWidth: 3 } })
-  })
-
-  // 点击空白处取消选中
-  graph.on('blank:click', () => {
-    clearNodeHighlight()
-    graph.getEdges().forEach(e => e.setAttrs({ line: { stroke: '#A2B1C3', strokeWidth: 2 } }))
-  })
-
-  // 右键删除节点
-  graph.on('node:contextmenu', ({ node, e }) => {
-    if (!isEditMode.value) return
-    e.preventDefault()
-    if (window.confirm('删除该节点？')) {
-      if (selectedNodeId.value && selectedNodeId.value === node.id) {
-        selectedNodeId.value = null
+    // 选中节点高亮
+    graph.on('node:click', ({ node }) => {
+      if (selectedNodeId.value && selectedNodeId.value !== node.id) {
+        clearNodeHighlight()
       }
-      node.remove()
-      delete nodeLabels.value[node.id]
-    }
-  })
+      selectedNodeId.value = node.id
+      highlightNode(node.id)
+    })
 
-  // 右键删除连线
-  graph.on('edge:contextmenu', ({ edge, e }) => {
-    if (!isEditMode.value) return
-    e.preventDefault()
-    if (window.confirm('删除该连线？')) {
-      edge.remove()
-    }
-  })
+    // 选中连线高亮
+    graph.on('edge:click', ({ edge }) => {
+      graph.getEdges().forEach(e => e.setAttrs({ line: { stroke: '#A2B1C3', strokeWidth: 2 } }))
+      edge.setAttrs({ line: { stroke: '#f56c6c', strokeWidth: 3 } })
+    })
 
-  // 双击节点，显示下方编辑栏
-  graph.on('node:dblclick', ({ node }) => {
-    startEditNode(node.id)
-  })
+    // 点击空白处取消选中
+    graph.on('blank:click', () => {
+      clearNodeHighlight()
+      graph.getEdges().forEach(e => e.setAttrs({ line: { stroke: '#A2B1C3', strokeWidth: 2 } }))
+    })
+
+    // 右键删除节点
+    graph.on('node:contextmenu', ({ node, e }) => {
+      if (!isEditMode.value) return
+      e.preventDefault()
+      if (window.confirm('删除该节点？')) {
+        if (selectedNodeId.value && selectedNodeId.value === node.id) {
+          selectedNodeId.value = null
+        }
+        node.remove()
+        delete nodeLabels.value[node.id]
+      }
+    })
+
+    // 右键删除连线
+    graph.on('edge:contextmenu', ({ edge, e }) => {
+      if (!isEditMode.value) return
+      e.preventDefault()
+      if (window.confirm('删除该连线？')) {
+        edge.remove()
+      }
+    })
+
+    // 双击节点，显示下方编辑栏
+    graph.on('node:dblclick', ({ node }) => {
+      startEditNode(node.id)
+    })
+  } catch (error) {
+    console.error('初始化图形失败:', error)
+  }
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', resizeGraph)
+  if (graph) {
+    try {
+      graph.dispose()
+    } catch (error) {
+      console.warn('清理图形实例失败:', error)
+    }
+  }
 })
 
 function addNode() {
@@ -270,6 +303,33 @@ function addNode() {
     data: {
       label: '新节点',
     },
+    ports: {
+      groups: {
+        // 四周锚点
+        top: {
+          position: 'top',
+          attrs: { circle: { r: 4, magnet: true, stroke: '#5F95FF', strokeWidth: 1, fill: '#fff' } }
+        },
+        right: {
+          position: 'right',
+          attrs: { circle: { r: 4, magnet: true, stroke: '#5F95FF', strokeWidth: 1, fill: '#fff' } }
+        },
+        bottom: {
+          position: 'bottom',
+          attrs: { circle: { r: 4, magnet: true, stroke: '#5F95FF', strokeWidth: 1, fill: '#fff' } }
+        },
+        left: {
+          position: 'left',
+          attrs: { circle: { r: 4, magnet: true, stroke: '#5F95FF', strokeWidth: 1, fill: '#fff' } }
+        }
+      },
+      items: [
+        { id: 'port_top', group: 'top' },
+        { id: 'port_right', group: 'right' },
+        { id: 'port_bottom', group: 'bottom' },
+        { id: 'port_left', group: 'left' }
+      ]
+    }
   })
 }
 
