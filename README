@@ -22,19 +22,40 @@
     支持节点之间的连线建立依赖关系
 
 节点内部逻辑查看：
-点击某个节点，出现【查看逻辑】的按钮，点击后出现悬浮界面，左边是输入节点列表，右边是输出节点列表，根据定义的依赖关系连线；当选中某个输出节点时，两边节点列表向两边移动，中间出现【输出节点计算逻辑区域】，展示md格式的逻辑说明，建立逻辑依赖的输入字段和绑定的输出字段的连线
+点击某个节点，出现【查看逻辑】的按钮，点击后出现悬浮界面，左边是输入字段列表，右边是输出字段列表，根据定义的依赖关系连线；当选中某个输出字段时，两边字段列表向两边移动，中间出现【输出节点计算逻辑区域】，展示md格式的逻辑说明，建立逻辑依赖的输入字段和绑定的输出字段的连线
 编辑状态下，界面和交互逻辑和查看状态保持一致，只是出现锚点，所有连线可编辑，逻辑区域md格式文本可编辑，输入输出字段可以进行增加、删除。支持自动获取输入节点（有向箭头直接指向当前节点的所有前置节点的输出字段）
 
 全局字段逻辑查看：
 定位某个字段，进入单字段逻辑查看模式，字段的节点【路径】高亮显示，点击高亮节点，和上述普通节点内部逻辑查看逻辑一致，进入节点内部逻辑查看界面，唯一在不同的是节点内部逻辑查看界面，和要查看的字段处理链路上相关的字段都高亮显示
 
 
-1. 技术选型
-前端框架：Vue 3（
-UI组件库：Element Plus 或 Ant Design Vue（提升开发效率和界面一致性）
-DAG图形引擎：
-X6（蚂蚁金服开源，支持Vue，功能强大，社区活跃，适合DAG编辑器）
-状态管理：Pinia（Vue官方推荐，轻量且易用）
-路由管理：Vue Router
-数据持久化：本地可用 IndexedDB 或 LocalStorage，生产环境建议后端API（如Node.js+MongoDB/PostgreSQL）
-权限管理：前端路由+组件级权限控制，后端接口权限校验
+数据模型设计：
+interface Field {
+  id: string;           // 字段唯一标识
+  name: string;         // 字段名
+  sourceNodeId?: string; // 来源节点id（如果来源节点是原始输入，则sourceNodeId为-1）
+  path: string[];       // 经过的节点id列表
+  dependendFieldIds: string[]; // 依赖的输入字段id
+  description?: string; // 字段描述
+  logic: string; // 字段的产出逻辑
+}
+
+interface Node {
+  id: string;
+  label: string;
+  inputFieldsIds: string[];
+  outputFieldsIds: string[];
+  preNodeIds: string[]; // 前置节点id
+  nextNodeIds: string[]; // 后置节点id
+}
+
+interface Logic {
+  outputFieldId: string;   // 输出字段id
+  inputFieldIds: string[]; // 依赖的输入字段id
+  description: string;     // md格式逻辑说明
+}
+
+interface DagGraph {
+  nodes: Node[];
+  fields: Field[]; // 全局字段唯一表
+}

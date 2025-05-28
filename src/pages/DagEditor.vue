@@ -26,12 +26,26 @@
       <el-button @click="addNode" v-if="isEditMode">添加节点</el-button>
       <el-button v-if="selectedNodeId && isEditMode" type="danger" @click="deleteNode">删除节点</el-button>
     </div>
+    <div v-if="selectedNodeId" class="logic-btn-bar">
+      <el-button type="primary" @click="showLogicEditor = true">查看逻辑</el-button>
+    </div>
+    <el-dialog v-model="showLogicEditor" title="节点逻辑查看/编辑" width="900px" :close-on-click-modal="false">
+      <NodeLogicEditor
+        v-if="currentNodeForLogic"
+        :node="currentNodeForLogic"
+        :isEditMode="isEditMode"
+      />
+      <template #footer>
+        <el-button @click="showLogicEditor = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick, watch, computed } from 'vue'
 import { Graph } from '@antv/x6'
+import NodeLogicEditor from '@/pages/NodeLogicEditor.vue'
 
 const container = ref(null)
 let graph = null
@@ -41,6 +55,20 @@ const nodeLabels = ref({}) // { [id]: label }
 const editInputValue = ref('')
 const editInputRef = ref(null)
 const isEditMode = ref(true)
+const showLogicEditor = ref(false)
+
+const currentNodeForLogic = computed(() => {
+  if (!selectedNodeId.value) return null
+  // 构造当前节点对象，包含 inputFields/outputFields/logic
+  // 这里只做演示，实际应从你的节点数据结构中获取
+  return {
+    id: selectedNodeId.value,
+    label: nodeLabels.value[selectedNodeId.value] || '',
+    inputFields: [], // TODO: 从你的全局数据获取
+    outputFields: [], // TODO: 从你的全局数据获取
+    logic: [] // TODO: 从你的全局数据获取
+  }
+})
 
 watch(editInputValue, (val) => {
   if (editingNodeId.value) {
@@ -392,5 +420,13 @@ function deleteNode() {
   min-width: 120px;
   max-width: 240px;
   background: #fff;
+}
+.logic-btn-bar {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 8px 0 0 0;
+  background: none;
 }
 </style> 
