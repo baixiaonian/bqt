@@ -9,7 +9,27 @@
         style="margin-right: 24px;"
       />
     </div>
-    <div ref="container" class="dag-graph-container"></div>
+    <div class="dag-search-bar">
+      <el-input
+        v-model="searchText"
+        placeholder="搜索字段名并高亮节点"
+        clearable
+        @input="handleSearch"
+        @clear="clearSearchHighlight"
+        size="small"
+        class="search-input"
+        style="width: 260px; margin-bottom: 8px;"
+      />
+    </div>
+    <div v-if="showNodeMenu" class="node-menu" :style="{ left: nodeMenuPos.x + 'px', top: nodeMenuPos.y + 'px' }">
+      <div class="node-menu-item node-menu-delete" @click="handleDeleteNodeFromMenu">删除节点</div>
+      <div class="node-menu-item" @click="handleShowLogicFromMenu">查看逻辑</div>
+      <div class="node-menu-item" @click="handleCopyNodeFromMenu">复制节点</div>
+    </div>
+    <div v-if="showAddNodeMenu" class="add-node-menu" :style="{ left: addNodeMenuPos.x + 'px', top: addNodeMenuPos.y + 'px' }">
+      <div class="add-node-menu-item" @click="handleAddNodeAtMenu">添加节点</div>
+    </div>
+    <div ref="container" class="dag-graph-container" @contextmenu="onCanvasContextMenu"></div>
     <div v-if="editingNodeId && isEditMode" class="node-edit-bar">
       <input
         ref="editInputRef"
@@ -22,18 +42,28 @@
         autofocus
       />
     </div>
-    <div class="dag-toolbar">
-      <el-button @click="addNode" v-if="isEditMode">添加节点</el-button>
-      <el-button v-if="selectedNodeId && isEditMode" type="danger" @click="deleteNode">删除节点</el-button>
-    </div>
-    <div v-if="selectedNodeId" class="logic-btn-bar">
-      <el-button type="primary" @click="showLogicEditor = true">查看逻辑</el-button>
+    <div v-if="selectedNodeId" class="node-desc-bar">
+      <template v-if="isEditMode">
+        <el-input
+          v-model="currentNodeDesc"
+          type="textarea"
+          :rows="2"
+          placeholder="请输入节点描述"
+          @blur="saveNodeDesc"
+          class="node-desc-input"
+        />
+      </template>
+      <template v-else>
+        <div class="node-desc-text">{{ currentNodeDesc || '暂无描述' }}</div>
+      </template>
     </div>
     <el-dialog v-model="showLogicEditor" title="节点逻辑查看/编辑" width="900px" :close-on-click-modal="false">
       <NodeLogicEditor
         v-if="currentNodeForLogic"
         :node="currentNodeForLogic"
         :isEditMode="isEditMode"
+        @add-input-field="handleAddInputField"
+        @add-output-field="handleAddOutputField"
       />
       <template #footer>
         <el-button @click="showLogicEditor = false">关闭</el-button>
@@ -43,31 +73,48 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, nextTick, watch, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick, watch, computed, watchEffect } from 'vue'
 import { Graph } from '@antv/x6'
 import NodeLogicEditor from '@/pages/NodeLogicEditor.vue'
+import * as models from './models.js'
+
+// 全局 DAG 数据
+const dagGraph = ref({
+  nodes: [], // Node[]
+})
 
 const container = ref(null)
 let graph = null
 const selectedNodeId = ref(null)
 const editingNodeId = ref(null)
-const nodeLabels = ref({}) // { [id]: label }
 const editInputValue = ref('')
 const editInputRef = ref(null)
 const isEditMode = ref(true)
 const showLogicEditor = ref(false)
+const currentNodeDesc = ref('')
+const searchText = ref('')
+const showAddNodeMenu = ref(false)
+const addNodeMenuPos = ref({ x: 0, y: 0 })
+let lastAddNodeCanvasPoint = { x: 0, y: 0 }
+const showNodeMenu = ref(false)
+const nodeMenuPos = ref({ x: 0, y: 0 })
+const nodeMenuNodeId = ref(null)
+
+// 节点label映射（辅助展示）
+const nodeLabels = computed(() => {
+  const map = {}
+  dagGraph.value.nodes.forEach(n => { map[n.id] = n.label })
+  return map
+})
 
 const currentNodeForLogic = computed(() => {
   if (!selectedNodeId.value) return null
-  // 构造当前节点对象，包含 inputFields/outputFields/logic
-  // 这里只做演示，实际应从你的节点数据结构中获取
-  return {
-    id: selectedNodeId.value,
-    label: nodeLabels.value[selectedNodeId.value] || '',
-    inputFields: [], // TODO: 从你的全局数据获取
-    outputFields: [], // TODO: 从你的全局数据获取
-    logic: [] // TODO: 从你的全局数据获取
-  }
+  return dagGraph.value.nodes.find(n => n.id === selectedNodeId.value) || null
+})
+
+// 控制台debug
+watchEffect(() => {
+  console.log('当前节点:', currentNodeForLogic.value)
 })
 
 watch(editInputValue, (val) => {
@@ -110,6 +157,7 @@ watch(isEditMode, async (val) => {
             },
           })
         },
+        edgeMovable: true
       }
 
       // 更新节点和连线的交互状态
@@ -138,6 +186,15 @@ watch(isEditMode, async (val) => {
     } catch (error) {
       console.warn('更新图形属性失败:', error)
     }
+  }
+})
+
+watch(selectedNodeId, (newId) => {
+  if (newId) {
+    const node = dagGraph.value.nodes.find(n => n.id === newId)
+    currentNodeDesc.value = node?.desc || ''
+  } else {
+    currentNodeDesc.value = ''
   }
 })
 
@@ -189,6 +246,15 @@ function cancelEdit() {
   editingNodeId.value = null
 }
 
+function saveNodeDesc() {
+  if (selectedNodeId.value) {
+    const node = dagGraph.value.nodes.find(n => n.id === selectedNodeId.value)
+    if (node) {
+      node.desc = currentNodeDesc.value
+    }
+  }
+}
+
 onMounted(async () => {
   await nextTick()
   try {
@@ -197,6 +263,19 @@ onMounted(async () => {
       width: container.value.clientWidth,
       height: container.value.clientHeight,
       grid: true,
+      scroller: {
+        enabled: true,
+        pannable: true,
+        pageVisible: false,
+        pageBreak: false,
+        // autoResize: true // 如需自适应可打开
+      },
+      mousewheel: {
+        enabled: true,
+        modifiers: ['ctrl', 'meta'], // 按住 ctrl 或 command 时滚轮缩放
+        minScale: 0.2,
+        maxScale: 2,
+      },
       connecting: {
         connector: 'smooth',
         anchor: 'center',
@@ -225,6 +304,7 @@ onMounted(async () => {
             },
           })
         },
+        edgeMovable: true
       },
       selecting: {
         enabled: true,
@@ -241,6 +321,9 @@ onMounted(async () => {
       },
     })
 
+    // 使画布支持直接鼠标左键拖动平移
+    graph.enablePanning()
+
     window.addEventListener('resize', resizeGraph)
 
     // 选中节点高亮
@@ -250,6 +333,16 @@ onMounted(async () => {
       }
       selectedNodeId.value = node.id
       highlightNode(node.id)
+      // 点击节点时进入编辑状态，显示名称和描述输入框
+      editingNodeId.value = node.id
+      editInputValue.value = nodeLabels.value[node.id] || '新节点'
+      currentNodeDesc.value = dagGraph.value.nodes.find(n => n.id === node.id)?.desc || ''
+      nextTick(() => {
+        if (editInputRef.value) {
+          editInputRef.value.focus()
+          editInputRef.value.select()
+        }
+      })
     })
 
     // 选中连线高亮
@@ -264,32 +357,62 @@ onMounted(async () => {
       graph.getEdges().forEach(e => e.setAttrs({ line: { stroke: '#A2B1C3', strokeWidth: 2 } }))
     })
 
-    // 右键删除节点
-    graph.on('node:contextmenu', ({ node, e }) => {
-      if (!isEditMode.value) return
-      e.preventDefault()
-      if (window.confirm('删除该节点？')) {
-        if (selectedNodeId.value && selectedNodeId.value === node.id) {
-          selectedNodeId.value = null
-        }
-        node.remove()
-        delete nodeLabels.value[node.id]
-      }
-    })
-
     // 右键删除连线
     graph.on('edge:contextmenu', ({ edge, e }) => {
       if (!isEditMode.value) return
       e.preventDefault()
-      if (window.confirm('删除该连线？')) {
-        edge.remove()
+      edge.remove()
+    })
+
+    // 双击节点，直接弹出逻辑编辑弹窗
+    graph.on('node:dblclick', ({ node }) => {
+      showLogicEditor.value = true
+    })
+
+    // 双击连线，直接删除
+    graph.on('edge:dblclick', ({ edge }) => {
+      if (!isEditMode.value) return
+      edge.remove()
+    })
+
+    // 连线建立时更新节点关系
+    graph.on('edge:connected', ({ edge }) => {
+      const sourceNodeId = edge.getSourceCellId()
+      const targetNodeId = edge.getTargetCellId()
+      
+      // 更新源节点的后置节点列表
+      const sourceNode = dagGraph.value.nodes.find(n => n.id === sourceNodeId)
+      if (sourceNode && !sourceNode.nextNodeIds.includes(targetNodeId)) {
+        sourceNode.nextNodeIds.push(targetNodeId)
+      }
+      
+      // 更新目标节点的前置节点列表
+      const targetNode = dagGraph.value.nodes.find(n => n.id === targetNodeId)
+      if (targetNode && !targetNode.preNodeIds.includes(sourceNodeId)) {
+        targetNode.preNodeIds.push(sourceNodeId)
       }
     })
 
-    // 双击节点，显示下方编辑栏
-    graph.on('node:dblclick', ({ node }) => {
-      startEditNode(node.id)
+    // 连线删除时更新节点关系
+    graph.on('edge:removed', ({ edge }) => {
+      const sourceNodeId = edge.getSourceCellId()
+      const targetNodeId = edge.getTargetCellId()
+      
+      // 更新源节点的后置节点列表
+      const sourceNode = dagGraph.value.nodes.find(n => n.id === sourceNodeId)
+      if (sourceNode) {
+        sourceNode.nextNodeIds = sourceNode.nextNodeIds.filter(id => id !== targetNodeId)
+      }
+      
+      // 更新目标节点的前置节点列表
+      const targetNode = dagGraph.value.nodes.find(n => n.id === targetNodeId)
+      if (targetNode) {
+        targetNode.preNodeIds = targetNode.preNodeIds.filter(id => id !== sourceNodeId)
+      }
     })
+
+    // 节点右键菜单
+    graph.on('node:contextmenu', onNodeContextMenu)
   } catch (error) {
     console.error('初始化图形失败:', error)
   }
@@ -306,14 +429,33 @@ onBeforeUnmount(() => {
   }
 })
 
-function addNode() {
+function generatePorts() {
+  const positions = ['top', 'right', 'bottom', 'left']
+  const items = []
+  positions.forEach(pos => {
+    for (let i = 0; i < 4; i++) {
+      items.push({ id: `${pos}_${i}_${Date.now()}_${Math.floor(Math.random()*10000)}`, group: pos })
+    }
+  })
+  return items
+}
+
+function addNode(pos) {
   if (!isEditMode.value) return
   const id = `${Date.now()}_${Math.floor(Math.random()*10000)}`
-  nodeLabels.value[id] = '新节点'
+  dagGraph.value.nodes.push({
+    id,
+    label: '新节点',
+    inputFields: [],
+    outputFields: [],
+    preNodeIds: [],
+    nextNodeIds: [],
+    desc: ''
+  })
   graph.addNode({
     id,
-    x: Math.random() * 600,
-    y: Math.random() * 400,
+    x: pos && pos.x !== undefined ? pos.x : Math.random() * 600,
+    y: pos && pos.y !== undefined ? pos.y : Math.random() * 400,
     width: 100,
     height: 40,
     label: '新节点',
@@ -333,30 +475,88 @@ function addNode() {
     },
     ports: {
       groups: {
-        // 四周锚点
         top: {
-          position: 'top',
-          attrs: { circle: { r: 4, magnet: true, stroke: '#5F95FF', strokeWidth: 1, fill: '#fff' } }
+          position: {
+            name: 'top',
+            args: { dx: 0 }
+          },
+          attrs: {
+            circle: {
+              r: 3,
+              magnet: true,
+              stroke: '#bfcbd9',
+              strokeWidth: 1,
+              fill: '#fff',
+              style: {
+                pointerEvents: 'all',
+                opacity: 0.18,
+                transition: 'opacity 0.2s',
+              }
+            }
+          }
         },
         right: {
-          position: 'right',
-          attrs: { circle: { r: 4, magnet: true, stroke: '#5F95FF', strokeWidth: 1, fill: '#fff' } }
+          position: {
+            name: 'right',
+            args: { dy: 0 }
+          },
+          attrs: {
+            circle: {
+              r: 3,
+              magnet: true,
+              stroke: '#bfcbd9',
+              strokeWidth: 1,
+              fill: '#fff',
+              style: {
+                pointerEvents: 'all',
+                opacity: 0.18,
+                transition: 'opacity 0.2s',
+              }
+            }
+          }
         },
         bottom: {
-          position: 'bottom',
-          attrs: { circle: { r: 4, magnet: true, stroke: '#5F95FF', strokeWidth: 1, fill: '#fff' } }
+          position: {
+            name: 'bottom',
+            args: { dx: 0 }
+          },
+          attrs: {
+            circle: {
+              r: 3,
+              magnet: true,
+              stroke: '#bfcbd9',
+              strokeWidth: 1,
+              fill: '#fff',
+              style: {
+                pointerEvents: 'all',
+                opacity: 0.18,
+                transition: 'opacity 0.2s',
+              }
+            }
+          }
         },
         left: {
-          position: 'left',
-          attrs: { circle: { r: 4, magnet: true, stroke: '#5F95FF', strokeWidth: 1, fill: '#fff' } }
+          position: {
+            name: 'left',
+            args: { dy: 0 }
+          },
+          attrs: {
+            circle: {
+              r: 3,
+              magnet: true,
+              stroke: '#bfcbd9',
+              strokeWidth: 1,
+              fill: '#fff',
+              style: {
+                pointerEvents: 'all',
+                opacity: 0.18,
+                transition: 'opacity 0.2s',
+              }
+            }
+          }
         }
       },
-      items: [
-        { id: 'port_top', group: 'top' },
-        { id: 'port_right', group: 'right' },
-        { id: 'port_bottom', group: 'bottom' },
-        { id: 'port_left', group: 'left' }
-      ]
+      items: generatePorts()
     }
   })
 }
@@ -370,6 +570,215 @@ function deleteNode() {
     selectedNodeId.value = null
   }
 }
+
+function handleAddInputField(field) {
+  const node = dagGraph.value.nodes.find(n => n.id === selectedNodeId.value)
+  if (node) node.inputFields.push(field)
+}
+
+function handleAddOutputField(field) {
+  const node = dagGraph.value.nodes.find(n => n.id === selectedNodeId.value)
+  if (node) node.outputFields.push(field)
+}
+
+function handleSearch() {
+  // 先清除所有高亮
+  if (graph) {
+    graph.getNodes().forEach(node => {
+      node.setAttrs({ body: { stroke: '#5F95FF', strokeWidth: 1 } })
+    })
+  }
+  if (!searchText.value.trim()) return
+  // 遍历所有节点，查找字段名
+  dagGraph.value.nodes.forEach(node => {
+    const match = [...(node.inputFields || []), ...(node.outputFields || [])].some(f => f.name === searchText.value.trim())
+    if (match && graph) {
+      const gNode = graph.getCellById(node.id)
+      if (gNode) {
+        gNode.setAttrs({ body: { stroke: '#faad14', strokeWidth: 3 } })
+      }
+    }
+  })
+}
+
+function clearSearchHighlight() {
+  if (graph) {
+    graph.getNodes().forEach(node => {
+      node.setAttrs({ body: { stroke: '#5F95FF', strokeWidth: 1 } })
+    })
+  }
+}
+
+function onCanvasContextMenu(e) {
+  e.preventDefault()
+  // 只在编辑模式下允许
+  if (!isEditMode.value) return
+  showAddNodeMenu.value = true
+  addNodeMenuPos.value = { x: e.clientX, y: e.clientY }
+  // 使用X6的坐标转换，保证节点出现在画布实际位置
+  if (graph) {
+    const local = graph.clientToLocal(e.clientX, e.clientY)
+    lastAddNodeCanvasPoint = { x: local.x, y: local.y }
+  }
+}
+
+function handleAddNodeAtMenu() {
+  addNode(lastAddNodeCanvasPoint)
+  showAddNodeMenu.value = false
+}
+
+// 节点右键菜单事件
+function onNodeContextMenu({ node, e }) {
+  if (!isEditMode.value) return
+  e.preventDefault()
+  showNodeMenu.value = true
+  nodeMenuPos.value = { x: e.clientX, y: e.clientY }
+  nodeMenuNodeId.value = node.id
+}
+
+function handleDeleteNodeFromMenu() {
+  if (!isEditMode.value || !nodeMenuNodeId.value) return
+  const node = graph.getCellById(nodeMenuNodeId.value)
+  if (node) node.remove()
+  delete nodeLabels.value[nodeMenuNodeId.value]
+  selectedNodeId.value = null
+  showNodeMenu.value = false
+}
+
+function handleShowLogicFromMenu() {
+  selectedNodeId.value = nodeMenuNodeId.value
+  showLogicEditor.value = true
+  showNodeMenu.value = false
+}
+
+function handleCopyNodeFromMenu() {
+  const node = dagGraph.value.nodes.find(n => n.id === nodeMenuNodeId.value)
+  if (node) {
+    const id = `${Date.now()}_${Math.floor(Math.random()*10000)}`
+    const newNode = JSON.parse(JSON.stringify(node))
+    newNode.id = id
+    newNode.label = node.label
+    // 位置偏移
+    let x = 100, y = 100
+    if (graph && graph.getCellById(node.id)) {
+      const oldNode = graph.getCellById(node.id)
+      x = (oldNode.getPosition().x || 0) + 40
+      y = (oldNode.getPosition().y || 0) + 40
+    }
+    dagGraph.value.nodes.push(newNode)
+    graph.addNode({
+      id,
+      x,
+      y,
+      width: 100,
+      height: 40,
+      label: newNode.label,
+      attrs: {
+        body: {
+          stroke: '#5F95FF',
+          strokeWidth: 1,
+          fill: '#fff',
+        },
+        label: {
+          fontSize: 14,
+          fill: '#333',
+        }
+      },
+      data: {
+        label: newNode.label,
+      },
+      ports: {
+        groups: {
+          top: {
+            position: {
+              name: 'top',
+              args: { dx: 0 }
+            },
+            attrs: {
+              circle: {
+                r: 3,
+                magnet: true,
+                stroke: '#bfcbd9',
+                strokeWidth: 1,
+                fill: '#fff',
+                style: {
+                  pointerEvents: 'all',
+                  opacity: 0.18,
+                  transition: 'opacity 0.2s',
+                }
+              }
+            }
+          },
+          right: {
+            position: {
+              name: 'right',
+              args: { dy: 0 }
+            },
+            attrs: {
+              circle: {
+                r: 3,
+                magnet: true,
+                stroke: '#bfcbd9',
+                strokeWidth: 1,
+                fill: '#fff',
+                style: {
+                  pointerEvents: 'all',
+                  opacity: 0.18,
+                  transition: 'opacity 0.2s',
+                }
+              }
+            }
+          },
+          bottom: {
+            position: {
+              name: 'bottom',
+              args: { dx: 0 }
+            },
+            attrs: {
+              circle: {
+                r: 3,
+                magnet: true,
+                stroke: '#bfcbd9',
+                strokeWidth: 1,
+                fill: '#fff',
+                style: {
+                  pointerEvents: 'all',
+                  opacity: 0.18,
+                  transition: 'opacity 0.2s',
+                }
+              }
+            }
+          },
+          left: {
+            position: {
+              name: 'left',
+              args: { dy: 0 }
+            },
+            attrs: {
+              circle: {
+                r: 3,
+                magnet: true,
+                stroke: '#bfcbd9',
+                strokeWidth: 1,
+                fill: '#fff',
+                style: {
+                  pointerEvents: 'all',
+                  opacity: 0.18,
+                  transition: 'opacity 0.2s',
+                }
+              }
+            }
+          }
+        },
+        items: generatePorts()
+      }
+    })
+  }
+  showNodeMenu.value = false
+}
+
+// 点击其他区域关闭菜单
+window.addEventListener('click', () => { showAddNodeMenu.value = false; showNodeMenu.value = false })
 </script>
 
 <style scoped>
@@ -383,7 +792,7 @@ function deleteNode() {
   position: absolute;
   top: 16px;
   right: 32px;
-  z-index: 10;
+  z-index: 30;
 }
 .dag-graph-container {
   flex: 1 1 0;
@@ -401,6 +810,7 @@ function deleteNode() {
   border-top: 1px solid #eee;
   box-shadow: 0 -2px 8px #f5f5f5;
   gap: 16px;
+  z-index: 20;
 }
 .node-edit-bar {
   width: 100%;
@@ -428,5 +838,89 @@ function deleteNode() {
   align-items: center;
   padding: 8px 0 0 0;
   background: none;
+}
+.node-desc-bar {
+  width: 100%;
+  padding: 16px 24px;
+  background: #f8f8f8;
+  border-top: 1px solid #eee;
+  box-sizing: border-box;
+}
+.node-desc-text {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #333;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.node-desc-input .el-textarea__inner {
+  font-size: 14px;
+  min-height: 36px !important;
+  background: #fafbfc;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+  box-shadow: none;
+  transition: border 0.2s;
+  padding: 8px 12px;
+}
+.node-desc-input .el-textarea__inner:focus {
+  border: 1.5px solid #5F95FF;
+  background: #fff;
+}
+.dag-search-bar {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 12px 0 0 0;
+  background: #fff;
+  z-index: 11;
+}
+.search-input {
+  font-size: 14px;
+}
+.add-node-menu {
+  position: fixed;
+  z-index: 1000;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px #eee;
+  min-width: 100px;
+  padding: 4px 0;
+}
+.add-node-menu-item {
+  padding: 8px 18px;
+  cursor: pointer;
+  font-size: 15px;
+  color: #333;
+  transition: background 0.2s;
+}
+.add-node-menu-item:hover {
+  background: #f5f7fa;
+}
+.node-menu {
+  position: fixed;
+  z-index: 1001;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px #eee;
+  min-width: 120px;
+  padding: 4px 0;
+}
+.node-menu-item {
+  padding: 8px 18px;
+  cursor: pointer;
+  font-size: 15px;
+  color: #333;
+  transition: background 0.2s;
+}
+.node-menu-item:hover {
+  background: #f5f7fa;
+}
+.node-menu-delete {
+  color: #f56c6c;
+  font-weight: bold;
 }
 </style> 
