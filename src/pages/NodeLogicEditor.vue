@@ -168,24 +168,26 @@ watch(selectedOutputField, (val) => {
   display: flex;
   flex-direction: row;
   width: 100%;
-  max-width: 100%;
-  min-height: 600px;
-  height: 80vh;
-  max-height: 90vh;
+  max-width: 1600px;
+  min-height: 420px;
+  height: 60vh;
+  max-height: 70vh;
   background: none;
   box-shadow: none;
   border-radius: 0;
   padding: 0;
   box-sizing: border-box;
-  overflow-x: auto;
+  overflow: hidden;
 }
 .field-list {
-  width: 200px;
-  max-width: 220px;
+  width: 280px;
+  max-width: 320px;
   min-width: 0;
-  padding: 24px 12px 24px 0;
-  max-height: 60vh;
-  overflow-y: auto;
+  padding: 24px 12px 32px 12px;
+  height: calc(100% - 52px);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
   background: none;
   border: none;
   box-shadow: none;
@@ -207,6 +209,9 @@ watch(selectedOutputField, (val) => {
   list-style: none;
   padding: 0;
   margin: 0;
+  flex: 1 1 0;
+  overflow-y: auto;
+  margin-bottom: 12px;
 }
 .field-list li {
   display: flex;
@@ -247,9 +252,11 @@ watch(selectedOutputField, (val) => {
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
-  padding: 32px 40px;
+  padding: 24px 24px;
   height: 100%;
   min-height: 400px;
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 .logic-center h3 {
   font-size: 22px;
@@ -259,8 +266,9 @@ watch(selectedOutputField, (val) => {
 }
 .logic-textarea {
   width: 100%;
-  height: 100%;
+  height: calc(100% - 48px);
   min-height: 320px;
+  max-height: calc(100% - 48px);
   font-size: 17px;
   border-radius: 10px;
   border: 1.5px solid #e0e0e0;
@@ -270,7 +278,7 @@ watch(selectedOutputField, (val) => {
   transition: border 0.2s;
   box-sizing: border-box;
   resize: none;
-  flex: 1 1 0;
+  overflow-y: auto;
 }
 .el-input[type="textarea"]:focus, .md-preview:focus {
   border: 1.5px solid #409eff;
@@ -282,6 +290,8 @@ watch(selectedOutputField, (val) => {
   border-radius: 6px;
   font-size: 15px;
   padding: 6px 18px;
+  flex-shrink: 0;
+  margin-top: 0;
 }
 .field-list .el-button[type="text"] {
   color: #409eff;

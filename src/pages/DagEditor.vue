@@ -38,7 +38,7 @@
         @keydown.enter="saveEdit"
         @keydown.esc="cancelEdit"
         @blur="saveEdit"
-        maxlength="20"
+        maxlength="50"
         autofocus
       />
     </div>
@@ -57,7 +57,13 @@
         <div class="node-desc-text">{{ currentNodeDesc || '暂无描述' }}</div>
       </template>
     </div>
-    <el-dialog v-model="showLogicEditor" title="节点逻辑查看/编辑" width="900px" :close-on-click-modal="false">
+    <el-dialog
+      v-model="showLogicEditor"
+      title="节点逻辑查看/编辑"
+      width="95vw"
+      :close-on-click-modal="false"
+      style="max-width:1600px; margin:0 auto; border-radius:16px;"
+    >
       <NodeLogicEditor
         v-if="currentNodeForLogic"
         :node="currentNodeForLogic"
@@ -456,18 +462,23 @@ function addNode(pos) {
     id,
     x: pos && pos.x !== undefined ? pos.x : Math.random() * 600,
     y: pos && pos.y !== undefined ? pos.y : Math.random() * 400,
-    width: 100,
-    height: 40,
+    width: 200,
+    height: 56,
     label: '新节点',
     attrs: {
       body: {
         stroke: '#5F95FF',
         strokeWidth: 1,
         fill: '#fff',
+        rx: 12,
+        ry: 12,
+        filter: 'drop-shadow(0 2px 8px #e6f7ff)',
       },
       label: {
-        fontSize: 14,
-        fill: '#333',
+        fontSize: 16,
+        fill: '#222',
+        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif',
+        fontWeight: 500,
       }
     },
     data: {
@@ -670,18 +681,23 @@ function handleCopyNodeFromMenu() {
       id,
       x,
       y,
-      width: 100,
-      height: 40,
+      width: 200,
+      height: 56,
       label: newNode.label,
       attrs: {
         body: {
           stroke: '#5F95FF',
           strokeWidth: 1,
           fill: '#fff',
+          rx: 12,
+          ry: 12,
+          filter: 'drop-shadow(0 2px 8px #e6f7ff)',
         },
         label: {
-          fontSize: 14,
-          fill: '#333',
+          fontSize: 16,
+          fill: '#222',
+          fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif',
+          fontWeight: 500,
         }
       },
       data: {
@@ -787,18 +803,36 @@ window.addEventListener('click', () => { showAddNodeMenu.value = false; showNode
   inset: 0;
   display: flex;
   flex-direction: column;
+  background: #f8fafc;
 }
 .dag-mode-switch {
   position: absolute;
   top: 16px;
   right: 32px;
   z-index: 30;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 2px 8px #e6f7ff;
+  padding: 6px 18px 6px 18px;
+  display: flex;
+  align-items: center;
+}
+.dag-mode-switch .el-switch {
+  --el-switch-on-color: #409eff;
+  --el-switch-off-color: #e0e0e0;
+  border-radius: 16px;
+  box-shadow: 0 1px 4px #e6f7ff;
+  height: 28px;
+  min-width: 60px;
 }
 .dag-graph-container {
   flex: 1 1 0;
   min-height: 0;
   min-width: 0;
   border: 1px solid #eee;
+  border-radius: 14px;
+  box-shadow: 0 4px 24px #e6f7ff;
+  background: #fcfdff;
 }
 .dag-toolbar {
   width: 100%;
@@ -820,16 +854,18 @@ window.addEventListener('click', () => { showAddNodeMenu.value = false; showNode
   background: #f8f8f8;
   border-top: 1px solid #eee;
   padding: 18px 0 8px 0;
+  border-radius: 0 0 12px 12px;
 }
 .node-edit-input {
   font-size: 16px;
   padding: 6px 16px;
   border: 1px solid #5F95FF;
-  border-radius: 4px;
+  border-radius: 8px;
   outline: none;
   min-width: 120px;
-  max-width: 240px;
+  max-width: 320px;
   background: #fff;
+  box-shadow: 0 1px 4px #f0f1f3;
 }
 .logic-btn-bar {
   width: 100%;
@@ -841,10 +877,13 @@ window.addEventListener('click', () => { showAddNodeMenu.value = false; showNode
 }
 .node-desc-bar {
   width: 100%;
-  padding: 16px 24px;
-  background: #f8f8f8;
+  padding: 18px 32px 18px 32px;
+  background: #fafdff;
   border-top: 1px solid #eee;
   box-sizing: border-box;
+  border-radius: 0 0 16px 16px;
+  box-shadow: 0 2px 8px #e6f7ff;
+  margin-bottom: 8px;
 }
 .node-desc-text {
   font-size: 15px;
@@ -854,18 +893,18 @@ window.addEventListener('click', () => { showAddNodeMenu.value = false; showNode
   word-break: break-all;
 }
 .node-desc-input .el-textarea__inner {
-  font-size: 14px;
-  min-height: 36px !important;
-  background: #fafbfc;
-  border-radius: 6px;
-  border: 1px solid #e0e0e0;
-  box-shadow: none;
+  font-size: 15px;
+  min-height: 40px !important;
+  background: #fff;
+  border-radius: 10px;
+  border: 1.5px solid #e0e0e0;
+  box-shadow: 0 1px 6px #e6f7ff;
   transition: border 0.2s;
-  padding: 8px 12px;
+  padding: 10px 16px;
 }
 .node-desc-input .el-textarea__inner:focus {
-  border: 1.5px solid #5F95FF;
-  background: #fff;
+  border: 1.5px solid #409eff;
+  background: #fafdff;
 }
 .dag-search-bar {
   width: 100%;
@@ -875,52 +914,76 @@ window.addEventListener('click', () => { showAddNodeMenu.value = false; showNode
   padding: 12px 0 0 0;
   background: #fff;
   z-index: 11;
+  box-shadow: 0 2px 8px #f0f1f3;
+  border-radius: 0 0 14px 14px;
 }
 .search-input {
-  font-size: 14px;
+  font-size: 15px;
+  border-radius: 10px;
+  box-shadow: 0 1px 6px #e6f7ff;
+  background: #fafdff;
+  border: 1.5px solid #e0e0e0;
+  transition: border 0.2s;
+  height: 36px;
+  padding-left: 12px;
+}
+.search-input input::placeholder {
+  color: #bfcbd9;
+  font-size: 15px;
 }
 .add-node-menu {
   position: fixed;
   z-index: 1000;
   background: #fff;
   border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px #eee;
-  min-width: 100px;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px #e6f7ff;
+  min-width: 120px;
   padding: 4px 0;
 }
 .add-node-menu-item {
-  padding: 8px 18px;
+  padding: 10px 22px;
   cursor: pointer;
   font-size: 15px;
   color: #333;
-  transition: background 0.2s;
+  transition: background 0.2s, color 0.2s;
+  border-radius: 6px;
 }
-.add-node-menu-item:hover {
-  background: #f5f7fa;
+.add-node-menu-item:hover, .node-menu-item:hover {
+  background: #f0faff;
+  color: #1890ff;
 }
 .node-menu {
   position: fixed;
   z-index: 1001;
   background: #fff;
   border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px #eee;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px #e6f7ff;
   min-width: 120px;
   padding: 4px 0;
 }
 .node-menu-item {
-  padding: 8px 18px;
+  padding: 10px 22px;
   cursor: pointer;
   font-size: 15px;
   color: #333;
-  transition: background 0.2s;
-}
-.node-menu-item:hover {
-  background: #f5f7fa;
+  transition: background 0.2s, color 0.2s;
+  border-radius: 6px;
 }
 .node-menu-delete {
   color: #f56c6c;
   font-weight: bold;
+}
+</style>
+
+<style>
+.el-dialog__wrapper {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+.el-dialog {
+  margin: 0 !important;
 }
 </style> 
