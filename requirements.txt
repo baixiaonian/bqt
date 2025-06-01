@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+sqlmodel
+sqlite-utils
+httpx
+openai
+langchain
+chromadb

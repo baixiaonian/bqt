@@ -1,3 +1,32 @@
+# DAG 编辑器一体化部署方案（Python 后端）
+
+本项目采用前端（Vue3+Vite）+ 后端（Python FastAPI）一体化部署，支持本地数据库（SQLite）和 AI/RAG 问答能力。
+
+## 快速启动
+
+1. 前端打包：
+   ```bash
+   npm install
+   npm run build
+   ```
+2. 后端依赖安装：
+   ```bash
+   cd backend
+   pip install -r requirements.txt
+   ```
+3. 启动后端服务（开发模式）：
+   ```bash
+   uvicorn main:app --reload --host 0.0.0.0 --port 8000
+   ```
+4. 访问：http://localhost:8000
+
+5. 容器化部署：
+   ```bash
+   docker build -t dag-app .
+   docker run -p 8000:8000 dag-app
+   ```
+
+---
 
 概念
 图：最外层的概念，支持编辑、浏览、保存多张图
