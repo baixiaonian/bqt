@@ -5,7 +5,6 @@ from sqlmodel import SQLModel, Session, create_engine, select
 import os
 from .models import DagGraph
 from .db import get_session
-from .ai_rag import answer_question
 
 app = FastAPI()
 
@@ -32,10 +31,6 @@ def save_dag(
     session.merge(dag)
     session.commit()
     return {"status": "ok"}
-
-@app.post("/api/ai-qa")
-def ai_qa(dag_id: str, question: str, session: Session = Depends(get_session)):
-    return answer_question(dag_id, question, session)
 
 @app.delete("/api/delete-dag")
 def delete_dag(id: str, session: Session = Depends(get_session)):

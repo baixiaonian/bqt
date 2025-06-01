@@ -24,7 +24,9 @@
           <template v-else>
             {{ field.name }}
           </template>
-          <el-button v-if="isEditMode" @click.stop="removeInputField(field.id)" type="text" size="small">删除</el-button>
+          <el-button v-if="isEditMode" @click.stop="removeInputField(field.id)" type="default" size="small" circle class="field-remove-btn">
+            <el-icon><Minus /></el-icon>
+          </el-button>
         </li>
         <li v-if="inputFields.length === 0" class="empty-tip">暂无输入字段，请点击下方按钮添加</li>
       </ul>
@@ -34,11 +36,12 @@
     <div class="logic-center" ref="logicCenterRef" style="position:relative;">
       <div v-if="selectedOutputField" style="flex:1; display:flex; flex-direction:column;">
         <h3>逻辑说明</h3>
+        <div class="md-tip">支持 <b>Markdown</b> 格式，在查看模式下渲染</div>
         <textarea
           v-if="isEditMode && selectedOutputField"
           v-model="selectedOutputField.logic"
           class="logic-textarea"
-          placeholder="请输入逻辑说明（支持Markdown）"
+          placeholder="请输入..."
           @focus="console.log('[NodeLogicEditor] 渲染逻辑编辑框', selectedOutputField)"
         />
         <div v-else v-html="renderMarkdown(selectedOutputField.logic)" class="md-preview"></div>
@@ -67,7 +70,9 @@
           <template v-else>
             {{ field.name }}
           </template>
-          <el-button v-if="isEditMode" @click.stop="removeOutputField(field.id)" type="text" size="small">删除</el-button>
+          <el-button v-if="isEditMode" @click.stop="removeOutputField(field.id)" type="default" size="small" circle class="field-remove-btn">
+            <el-icon><Minus /></el-icon>
+          </el-button>
         </li>
         <li v-if="outputFields.length === 0" class="empty-tip">暂无输出字段，请点击下方按钮添加</li>
       </ul>
@@ -80,6 +85,7 @@
 import { ref, watchEffect, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { marked } from 'marked'
 import * as models from './models.js'
+import { Minus } from '@element-plus/icons-vue'
 const props = defineProps({
   node: Object, // Node对象
   isEditMode: Boolean
@@ -264,6 +270,13 @@ watch(selectedOutputField, (val) => {
   margin-bottom: 18px;
   color: #222;
 }
+.md-tip {
+  color: #888;
+  font-size: 14px;
+  margin-bottom: 6px;
+  margin-left: 2px;
+  user-select: none;
+}
 .logic-textarea {
   width: 100%;
   height: calc(100% - 48px);
@@ -279,6 +292,8 @@ watch(selectedOutputField, (val) => {
   box-sizing: border-box;
   resize: none;
   overflow-y: auto;
+  font-family: 'Fira Mono', 'Consolas', 'Menlo', 'Monaco', 'monospace', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
+  line-height: 1.7;
 }
 .el-input[type="textarea"]:focus, .md-preview:focus {
   border: 1.5px solid #409eff;
@@ -315,5 +330,24 @@ watch(selectedOutputField, (val) => {
 .field-list li.selected:hover {
   background: #e6f7ff;
   border: 1.5px solid #40a9ff;
+}
+.field-remove-btn {
+  margin-left: 4px;
+  background: #f5f6fa !important;
+  border: 1.5px solid #d3d4d6 !important;
+  color: #b0b3b8 !important;
+  transition: background 0.2s, color 0.2s, border 0.2s;
+}
+.field-remove-btn .el-icon {
+  color: #b0b3b8 !important;
+  font-size: 18px;
+}
+.field-remove-btn:hover {
+  background: #f56c6c !important;
+  color: #fff !important;
+  border-color: #f56c6c !important;
+}
+.field-remove-btn:hover .el-icon {
+  color: #fff !important;
 }
 </style> 

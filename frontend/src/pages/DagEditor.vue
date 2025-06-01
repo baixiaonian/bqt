@@ -4,8 +4,12 @@
     element-loading-text="加载中..."
     element-loading-background="rgba(255,255,255,0.6)"
   >
+    <!-- 左侧竖排按钮 -->
+    <div class="dag-list-float-btn" @click.stop="toggleDagListPanel">
+      <span>图<br>列<br>表</span>
+    </div>
     <!-- 图列表面板 -->
-    <div class="dag-list-panel">
+    <div class="dag-list-panel" :class="{ show: showDagListPanel }" @click.stop>
       <div class="dag-list-title">图列表</div>
       <ul class="dag-list-ul">
         <li
@@ -47,46 +51,79 @@
             :disabled="isDeleting"
           />
         </li>
+        <!-- 新建图项 -->
+        <li class="dag-list-item dag-list-add-item" @click="onAddDag">
+          <div class="dag-list-item-main dag-list-add-main">
+            <el-icon class="dag-list-add-plus"><Plus /></el-icon>
+          </div>
+        </li>
       </ul>
-      <el-button class="dag-list-add-btn" @click="onAddDag" :loading="isSaving" :disabled="isSaving">新建图</el-button>
+      <div class="dag-list-plus-bar">
+        <el-button class="dag-list-plus-btn" circle type="primary" plain @click="onAddDag" :loading="isSaving" :disabled="isSaving">
+          <el-icon><Plus /></el-icon>
+        </el-button>
+      </div>
     </div>
-    <!-- 保存按钮 -->
-    <el-button
-      class="dag-save-btn"
-      type="primary"
-      :loading="isSaving"
-      @click="saveDag"
-      style="position:absolute;top:16px;right:160px;z-index:31;"
-      :disabled="isSaving"
-    >保存</el-button>
-    <div class="dag-mode-switch">
-      <el-switch
-        v-model="isEditMode"
-        active-text="编辑模式"
-        inactive-text="查看模式"
-        inline-prompt
-        style="margin-right: 24px;"
-      />
+    <div class="dag-toolbar-bar">
+      <div class="dag-search-bar">
+        <el-input
+          v-model="searchText"
+          placeholder="搜索字段名并高亮节点"
+          clearable
+          @input="handleSearch"
+          @clear="clearSearchHighlight"
+          size="small"
+          class="search-input"
+          style="width: 260px; margin-bottom: 0;"
+        />
+      </div>
+      <div class="dag-toolbar-group">
+        <el-button
+          class="dag-save-btn-beauty"
+          type="primary"
+          :loading="isSaving"
+          @click="saveDag"
+          :disabled="isSaving"
+        >保存</el-button>
+        <el-button
+          class="dag-export-btn-beauty"
+          type="default"
+          @click="exportDagAsJson"
+          :disabled="!dagGraph.id"
+        >导出</el-button>
+        <el-button
+          class="dag-import-btn-beauty"
+          type="default"
+          @click="onImportDagClick"
+        >导入</el-button>
+        <input
+          ref="importInputRef"
+          type="file"
+          accept=".json"
+          style="display:none"
+          @change="onImportDagFile"
+        />
+        <div class="dag-edit-switch-scale">
+          <el-switch
+            v-model="isEditMode"
+            active-text="编辑模式"
+            inactive-text="查看模式"
+            inline-prompt
+            class="dag-edit-switch"
+          />
+        </div>
+      </div>
     </div>
-    <div class="dag-search-bar">
-      <el-input
-        v-model="searchText"
-        placeholder="搜索字段名并高亮节点"
-        clearable
-        @input="handleSearch"
-        @clear="clearSearchHighlight"
-        size="small"
-        class="search-input"
-        style="width: 260px; margin-bottom: 8px;"
-      />
-    </div>
-    <div v-if="showNodeMenu" class="node-menu" :style="{ left: nodeMenuPos.x + 'px', top: nodeMenuPos.y + 'px' }">
-      <div class="node-menu-item node-menu-delete" @click="handleDeleteNodeFromMenu">删除节点</div>
-      <div class="node-menu-item" @click="handleShowLogicFromMenu">查看逻辑</div>
-      <div class="node-menu-item" @click="handleCopyNodeFromMenu">复制节点</div>
-    </div>
-    <div v-if="showAddNodeMenu" class="add-node-menu" :style="{ left: addNodeMenuPos.x + 'px', top: addNodeMenuPos.y + 'px' }">
-      <div class="add-node-menu-item" @click="handleAddNodeAtMenu">添加节点</div>
+    <div class="dag-ops-tip">
+      <span class="ops-tip-key">新建节点：</span>右键画板空白区域<br>
+      <span class="ops-tip-key">查看节点内部逻辑：</span>双击节点<br>
+      <span class="ops-tip-key">节点名称、描述修改：</span>单击节点，画布下方修改<br>
+      <span class="ops-tip-key">删除、复制、查看节点逻辑：</span>右键节点<br>
+      <span class="ops-tip-key">删除连线：</span>左键双击连线<br>
+      <span class="ops-tip-key">节点内部逻辑编辑：</span>选中输出字段；勾选依赖的输入，中间文本框中编辑<br>
+      <span class="ops-tip-key">画布移动：</span>鼠标左键长按画布空白区域移动<br>
+      <span class="ops-tip-key">缩放：</span>ctrl/command + 鼠标滚轮<br>
+      <span class="ops-tip-key">图名称修改：</span>双击图列表图名称，修改后回车
     </div>
     <div ref="container" class="dag-graph-container" @contextmenu="onCanvasContextMenu"></div>
     <div v-if="editingNodeId && isEditMode" class="node-edit-bar">
@@ -134,6 +171,18 @@
         <el-button @click="showLogicEditor = false">关闭</el-button>
       </template>
     </el-dialog>
+
+    <!-- 右键空白区域菜单 -->
+    <div v-if="showAddNodeMenu" class="add-node-menu" :style="{ left: addNodeMenuPos.x + 'px', top: addNodeMenuPos.y + 'px' }">
+      <div class="add-node-menu-item" @click="handleAddNodeAtMenu">新建节点</div>
+    </div>
+
+    <!-- 右键节点菜单 -->
+    <div v-if="showNodeMenu" class="node-menu" :style="{ left: nodeMenuPos.x + 'px', top: nodeMenuPos.y + 'px' }">
+      <div class="node-menu-item" @click="handleShowLogicFromMenu">查看/编辑逻辑</div>
+      <div class="node-menu-item" @click="handleCopyNodeFromMenu">复制节点</div>
+      <div class="node-menu-item node-menu-delete" @click="handleDeleteNodeFromMenu">删除节点</div>
+    </div>
   </div>
 </template>
 
@@ -143,7 +192,7 @@ import { Graph } from '@antv/x6'
 import NodeLogicEditor from '@/pages/NodeLogicEditor.vue'
 import * as models from './models.js'
 import { ElMessageBox, ElMessage, ElLoading } from 'element-plus'
-import { Delete } from '@element-plus/icons-vue'
+import { Delete, Plus } from '@element-plus/icons-vue'
 
 // 多图相关
 const dagList = ref([])           // 图列表
@@ -180,6 +229,9 @@ const nodeMenuNodeId = ref(null)
 const hoverDagId = ref(null)
 const editingDagId = ref(null)
 const editingDagName = ref('')
+const showDagListPanel = ref(false)
+const importInputRef = ref(null)
+const is_change = ref(false)
 
 // 节点label映射（辅助展示）
 const nodeLabels = computed(() => {
@@ -302,7 +354,10 @@ function highlightNode(id) {
   }
 }
 
-
+// 监听所有会更改图的操作，设置 is_change = true
+function markChanged() {
+  if (isEditMode.value) is_change.value = true
+}
 
 function saveEdit() {
   if (editingNodeId.value && editInputValue.value.trim()) {
@@ -311,6 +366,7 @@ function saveEdit() {
     if (node) node.setLabel(editInputValue.value.trim())
   }
   editingNodeId.value = null
+  markChanged()
 }
 
 function cancelEdit() {
@@ -324,6 +380,7 @@ function saveNodeDesc() {
       node.desc = currentNodeDesc.value
     }
   }
+  markChanged()
 }
 
 onMounted(async () => {
@@ -394,6 +451,10 @@ onMounted(async () => {
 
     // 使画布支持直接鼠标左键拖动平移
     graph.enablePanning()
+
+    // 注册连线建立/删除时的修改标志
+    graph.on('edge:connected', () => { markChanged() })
+    graph.on('edge:removed', () => { markChanged() })
 
     window.addEventListener('resize', resizeGraph)
 
@@ -592,6 +653,12 @@ onMounted(async () => {
             label: node.label,
           },
           ports
+        })
+      })
+      // 渲染完所有节点后，统一根据isEditMode隐藏/显示锚点
+      graph.getNodes().forEach(node => {
+        node.getPorts().forEach(port => {
+          node.setPortProp(port.id, 'attrs/circle/style/display', isEditMode.value ? '' : 'none')
         })
       })
       // 调试：打印所有节点的ports
@@ -796,6 +863,7 @@ function addNode(pos) {
       items: generatePorts(id)
     }
   })
+  markChanged()
 }
 
 function deleteNode() {
@@ -806,16 +874,19 @@ function deleteNode() {
     delete nodeLabels.value[selectedNodeId.value]
     selectedNodeId.value = null
   }
+  markChanged()
 }
 
 function handleAddInputField(field) {
   const node = dagGraph.value.nodes.find(n => n.id === selectedNodeId.value)
   if (node) node.inputFields.push(field)
+  markChanged()
 }
 
 function handleAddOutputField(field) {
   const node = dagGraph.value.nodes.find(n => n.id === selectedNodeId.value)
   if (node) node.outputFields.push(field)
+  markChanged()
 }
 
 function handleSearch() {
@@ -862,6 +933,7 @@ function onCanvasContextMenu(e) {
 function handleAddNodeAtMenu() {
   addNode(lastAddNodeCanvasPoint)
   showAddNodeMenu.value = false
+  markChanged()
 }
 
 // 节点右键菜单事件
@@ -880,6 +952,7 @@ function handleDeleteNodeFromMenu() {
   delete nodeLabels.value[nodeMenuNodeId.value]
   selectedNodeId.value = null
   showNodeMenu.value = false
+  markChanged()
 }
 
 function handleShowLogicFromMenu() {
@@ -1096,6 +1169,7 @@ async function saveDag() {
     const result = await res.json()
     console.log('[保存DAG] 成功:', result)
     await fetchDagListAndSwitchToCurrent()
+    is_change.value = false
   } catch (err) {
     console.log('[保存DAG] 异常:', err)
   } finally {
@@ -1224,6 +1298,12 @@ async function fetchDag(id) {
             ports
           })
         })
+        // 渲染完所有节点后，统一根据isEditMode隐藏/显示锚点
+        graph.getNodes().forEach(node => {
+          node.getPorts().forEach(port => {
+            node.setPortProp(port.id, 'attrs/circle/style/display', isEditMode.value ? '' : 'none')
+          })
+        })
         // 渲染连线（优先用edges）
         if (dagGraph.value.edges && dagGraph.value.edges.length > 0) {
           dagGraph.value.edges.forEach(edge => {
@@ -1253,10 +1333,8 @@ async function fetchDag(id) {
           })
         }
       }
-    } else {
-      dagGraph.value = { id: '', name: '', desc: '', nodes: [], edges: [] }
-      currentDagId.value = null
     }
+    is_change.value = false
   } finally {
     isLoading.value = false
   }
@@ -1294,7 +1372,7 @@ function getGraphNodesFromCanvas() {
 }
 
 async function onAddDag() {
-  isSaving.value = true
+  if (!(await confirmLeaveIfChanged())) return
   if (graph) {
     graph.clearCells()
   }
@@ -1310,17 +1388,22 @@ async function onAddDag() {
   console.log('[onAddDag] 新建图:', dagGraph.value)
   await saveDag()
   await fetchDag(uuid)
-  isSaving.value = false
+  nextTick(() => {
+    const ul = document.querySelector('.dag-list-ul')
+    if (ul) ul.scrollTop = ul.scrollHeight
+  })
 }
 
 async function onSelectDag(id) {
   if (id === currentDagId.value) return
+  if (!(await confirmLeaveIfChanged())) return
   console.log('[onSelectDag] 切换到图id:', id)
   await fetchDag(id)
   await fetchDagListAndSwitchToCurrent()
 }
 
 async function onDeleteDag(id) {
+  if (!(await confirmLeaveIfChanged())) return
   isDeleting.value = true
   try {
     await ElMessageBox.confirm('确定要删除该图吗？删除后不可恢复！', '警告', {
@@ -1406,6 +1489,246 @@ async function saveEditDagName(item) {
   } catch (e) {}
   isSaving.value = false
 }
+
+function openDagListPanel() { showDagListPanel.value = true }
+function closeDagListPanel() { showDagListPanel.value = false }
+function toggleDagListPanel() { showDagListPanel.value = !showDagListPanel.value }
+
+// 点击空白处收起
+onMounted(() => {
+  document.addEventListener('click', handleGlobalClick)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleGlobalClick)
+})
+function handleGlobalClick(e) {
+  const panel = document.querySelector('.dag-list-panel')
+  const btn = document.querySelector('.dag-list-float-btn')
+  if (showDagListPanel.value && panel && !panel.contains(e.target) && btn && !btn.contains(e.target)) {
+    showDagListPanel.value = false
+  }
+}
+
+function exportDagAsJson() {
+  if (!dagGraph.value || !dagGraph.value.id) return
+  const data = JSON.stringify(dagGraph.value, null, 2)
+  const blob = new Blob([data], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${dagGraph.value.name || 'dag'}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function onImportDagClick() {
+  if (importInputRef.value) importInputRef.value.click()
+}
+
+async function onImportDagFile(e) {
+  const file = e.target.files[0]
+  if (!file) return
+  // 弹窗确认
+  try {
+    await ElMessageBox.confirm(
+      '当前图内容将被导入的文件覆盖，是否继续？',
+      '导入确认',
+      {
+        confirmButtonText: '继续',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+  } catch {
+    e.target.value = ''
+    return // 用户取消
+  }
+  const reader = new FileReader()
+  reader.onload = async (evt) => {
+    try {
+      const data = JSON.parse(evt.target.result)
+      // 只覆盖nodes和edges，保留当前id和name
+      if (!data.nodes || !Array.isArray(data.nodes)) throw new Error('无效的DAG文件')
+      if (graph) graph.clearCells()
+      dagGraph.value.nodes = data.nodes
+      dagGraph.value.edges = data.edges || []
+      // 渲染节点和连线（复用fetchDag渲染部分）
+      if (graph && dagGraph.value.nodes && dagGraph.value.nodes.length > 0) {
+        dagGraph.value.nodes.forEach(node => {
+          let ports = node.ports
+          if (!ports || !ports.items || ports.items.length !== 32) {
+            ports = {
+              groups: {
+                top: {
+                  position: { name: 'top', args: { dx: 0 } },
+                  attrs: {
+                    circle: {
+                      r: 2.5,
+                      magnet: true,
+                      stroke: '#409EFF',
+                      strokeWidth: 1,
+                      fill: '#fff',
+                      style: {
+                        pointerEvents: 'all',
+                        opacity: 0.3,
+                        transition: 'opacity 0.2s, stroke 0.2s, fill 0.2s',
+                      }
+                    }
+                  }
+                },
+                right: {
+                  position: { name: 'right', args: { dy: 0 } },
+                  attrs: {
+                    circle: {
+                      r: 2.5,
+                      magnet: true,
+                      stroke: '#409EFF',
+                      strokeWidth: 1,
+                      fill: '#fff',
+                      style: {
+                        pointerEvents: 'all',
+                        opacity: 0.3,
+                        transition: 'opacity 0.2s, stroke 0.2s, fill 0.2s',
+                      }
+                    }
+                  }
+                },
+                bottom: {
+                  position: { name: 'bottom', args: { dx: 0 } },
+                  attrs: {
+                    circle: {
+                      r: 2.5,
+                      magnet: true,
+                      stroke: '#409EFF',
+                      strokeWidth: 1,
+                      fill: '#fff',
+                      style: {
+                        pointerEvents: 'all',
+                        opacity: 0.3,
+                        transition: 'opacity 0.2s, stroke 0.2s, fill 0.2s',
+                      }
+                    }
+                  }
+                },
+                left: {
+                  position: { name: 'left', args: { dy: 0 } },
+                  attrs: {
+                    circle: {
+                      r: 2.5,
+                      magnet: true,
+                      stroke: '#409EFF',
+                      strokeWidth: 1,
+                      fill: '#fff',
+                      style: {
+                        pointerEvents: 'all',
+                        opacity: 0.3,
+                        transition: 'opacity 0.2s, stroke 0.2s, fill 0.2s',
+                      }
+                    }
+                  }
+                }
+              },
+              items: generatePorts(node.id)
+            }
+          }
+          graph.addNode({
+            id: node.id,
+            x: typeof node.x === 'number' ? node.x : Math.random() * 600,
+            y: typeof node.y === 'number' ? node.y : Math.random() * 400,
+            width: 200,
+            height: 66,
+            label: node.label,
+            attrs: {
+              body: {
+                stroke: '#5F95FF',
+                strokeWidth: 1,
+                fill: '#fff',
+                rx: 12,
+                ry: 12,
+                filter: 'drop-shadow(0 2px 8px #e6f7ff)',
+              },
+              label: {
+                fontSize: 16,
+                fill: '#222',
+                fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif',
+                fontWeight: 500,
+              }
+            },
+            data: {
+              label: node.label,
+            },
+            ports
+          })
+        })
+        graph.getNodes().forEach(node => {
+          node.getPorts().forEach(port => {
+            node.setPortProp(port.id, 'attrs/circle/style/display', isEditMode.value ? '' : 'none')
+          })
+        })
+        if (dagGraph.value.edges && dagGraph.value.edges.length > 0) {
+          dagGraph.value.edges.forEach(edge => {
+            const sourceNode = graph.getCellById(edge.source)
+            const targetNode = graph.getCellById(edge.target)
+            const sourcePortExists = sourceNode && sourceNode.getPorts().some(p => p.id === edge.sourcePort)
+            const targetPortExists = targetNode && targetNode.getPorts().some(p => p.id === edge.targetPort)
+            if (sourceNode && targetNode && sourcePortExists && targetPortExists) {
+              graph.addEdge({
+                source: { cell: edge.source, port: edge.sourcePort },
+                target: { cell: edge.target, port: edge.targetPort },
+                attrs: {
+                  line: {
+                    stroke: '#A2B1C3',
+                    strokeWidth: 2,
+                    targetMarker: {
+                      name: 'block',
+                      width: 12,
+                      height: 8,
+                    },
+                  },
+                },
+              })
+            }
+          })
+        }
+      }
+      ElMessage.success('导入成功！')
+    } catch (err) {
+      ElMessage.error('导入失败：文件格式错误')
+    }
+  }
+  reader.readAsText(file)
+  e.target.value = ''
+}
+
+// 跳出当前图的操作前判断
+async function confirmLeaveIfChanged() {
+  if (isEditMode.value && is_change.value) {
+    try {
+      await ElMessageBox.confirm(
+        '当前图还未保存，是否离开？',
+        '未保存提示',
+        {
+          confirmButtonText: '离开',
+          cancelButtonText: '取消',
+          type: 'warning',
+        }
+      )
+      return true
+    } catch {
+      return false
+    }
+  }
+  return true
+}
+
+// 刷新/关闭浏览器前判断
+window.addEventListener('beforeunload', (e) => {
+  if (isEditMode.value && is_change.value) {
+    e.preventDefault()
+    e.returnValue = ''
+    return ''
+  }
+})
 </script>
 
 <style>
@@ -1586,20 +1909,61 @@ async function saveEditDagName(item) {
   color: #f56c6c;
   font-weight: bold;
 }
+.dag-list-float-btn {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 54px;
+  height: 180px;
+  background: #fafdff;
+  border-radius: 0 18px 18px 0;
+  box-shadow: 0 4px 16px #e6f7ff;
+  border: 2.5px solid #409eff;
+  color: #409eff;
+  font-size: 28px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 30;
+  user-select: none;
+  transition: background 0.2s, color 0.2s, border 0.2s, box-shadow 0.2s;
+  letter-spacing: 2px;
+}
+.dag-list-float-btn span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.1;
+}
+.dag-list-float-btn:hover {
+  background: #409eff;
+  color: #fff;
+  border: 2.5px solid #409eff;
+  box-shadow: 0 6px 24px #e6f7ff;
+}
 .dag-list-panel {
   position: absolute;
-  left: 32px;
-  top: 120px;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%) translateX(-100%);
+  transition: transform 0.35s cubic-bezier(.4,1.3,.6,1);
   width: 180px;
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 2px 8px #e6f7ff;
   padding: 18px 10px 18px 10px;
-  z-index: 20;
+  z-index: 40;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  min-height: 220px;
+  min-height: 400px;
+}
+.dag-list-panel.show {
+  transform: translateY(-50%) translateX(0);
 }
 .dag-list-title {
   font-size: 18px;
@@ -1612,7 +1976,7 @@ async function saveEditDagName(item) {
   list-style: none;
   padding: 0;
   margin: 0 0 12px 0;
-  max-height: 300px;
+  max-height: 500px;
   overflow-y: auto;
 }
 .dag-list-item {
@@ -1655,9 +2019,42 @@ async function saveEditDagName(item) {
   border: 1.5px solid #409eff;
   color: #1890ff;
 }
-.dag-list-add-btn {
+.dag-list-bottom-bar {
   width: 100%;
   margin-top: 8px;
+  padding-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.dag-list-divider {
+  width: 90%;
+  height: 1.5px;
+  background: linear-gradient(90deg, #f0f1f3 0%, #e6f7ff 100%);
+  border-radius: 1px;
+  margin-bottom: 12px;
+}
+.dag-list-add-btn-beauty {
+  width: 92%;
+  height: 40px;
+  border-radius: 20px;
+  font-size: 16px;
+  font-weight: bold;
+  background: #fff;
+  color: #409eff;
+  border: 1.5px solid #409eff;
+  box-shadow: 0 2px 8px #e6f7ff;
+  transition: background 0.2s, color 0.2s, border 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  margin-bottom: 2px;
+}
+.dag-list-add-btn-beauty:hover {
+  background: #409eff;
+  color: #fff;
+  border: 1.5px solid #409eff;
 }
 .dag-save-btn {
   min-width: 80px;
@@ -1673,6 +2070,59 @@ async function saveEditDagName(item) {
 .dag-list-delete-btn:hover {
   opacity: 1;
 }
+.dag-list-plus-bar {
+  display: none !important;
+}
+.dag-list-add-item {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  background: #f8fafc;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px #e6f7ff;
+  border: 1.5px dashed #bfcbd9;
+  margin-bottom: 8px;
+  transition: background 0.2s, border 0.2s;
+}
+.dag-list-add-item:hover {
+  background: #e6f7ff;
+  border: 1.5px solid #409eff;
+}
+.dag-list-add-main {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dag-list-add-plus {
+  font-size: 26px;
+  color: #409eff;
+  font-weight: bold;
+}
+.dag-ops-tip {
+  position: absolute;
+  top: 60px;
+  left: 12px;
+  font-size: 14px;
+  color: #888;
+  line-height: 1.7;
+  background: transparent;
+  border-radius: 8px;
+  padding: 10px 18px 10px 14px;
+  z-index: 20;
+  pointer-events: none;
+  user-select: text;
+  max-width: 340px;
+  min-width: 220px;
+}
+.ops-tip-key {
+  font-weight: bold;
+  color: #409eff;
+  margin-right: 2px;
+  letter-spacing: 0.5px;
+}
 </style>
 
 <style>
@@ -1683,5 +2133,109 @@ async function saveEditDagName(item) {
 }
 .el-dialog {
   margin: 0 !important;
+}
+</style>
+
+<style scoped>
+/* 删除.ai-chat-panel及相关样式 */
+.dag-toolbar-bar {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border-radius: 0 0 14px 14px;
+  box-shadow: 0 2px 8px #f0f1f3;
+  padding: 0 32px 0 0;
+  min-height: 64px;
+  margin-bottom: 0;
+  z-index: 11;
+}
+.dag-search-bar {
+  display: flex;
+  align-items: center;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  margin-bottom: 0;
+}
+.dag-toolbar-group {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 2px 8px #e6f7ff;
+  padding: 4px 12px 4px 12px;
+  gap: 12px;
+  height: 40px;
+}
+.dag-save-btn-beauty {
+  min-width: 72px;
+  height: 32px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px #e6f7ff;
+  letter-spacing: 1px;
+  padding: 0 16px;
+  line-height: 32px;
+}
+.dag-export-btn-beauty {
+  min-width: 90px;
+  height: 32px;
+  font-size: 15px;
+  font-weight: 500;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px #e6f7ff;
+  letter-spacing: 1px;
+  padding: 0 16px;
+  line-height: 32px;
+  margin-left: 4px;
+}
+.dag-import-btn-beauty {
+  min-width: 90px;
+  height: 32px;
+  font-size: 15px;
+  font-weight: 500;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px #e6f7ff;
+  letter-spacing: 1px;
+  padding: 0 16px;
+  line-height: 32px;
+  margin-left: 4px;
+}
+.dag-edit-switch-scale {
+  display: flex;
+  align-items: center;
+  transform: scale(1.25);
+  transform-origin: left center;
+  min-width: 110px;
+}
+.dag-edit-switch {
+  margin-left: 4px;
+  --el-switch-on-color: #409eff;
+  --el-switch-off-color: #e0e0e0;
+  border-radius: 18px;
+  box-shadow: 0 1px 4px #e6f7ff;
+  min-width: 90px;
+}
+::v-deep(.dag-edit-switch .el-switch) {
+  transform: scale(1.25);
+}
+::v-deep(.dag-edit-switch .el-switch__label) {
+  font-size: 16px !important;
+  font-weight: 600;
+}
+</style>
+
+<style>
+.dag-edit-switch .el-switch {
+  transform: scale(1.25) !important;
+}
+.dag-edit-switch .el-switch__label {
+  font-size: 16px !important;
+  font-weight: 600;
 }
 </style> 
